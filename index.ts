@@ -4,12 +4,12 @@ type ProductIdentifier = {
 	comments: string[];
 }
 
-type UserAgentData = {
+type UserAgentHeader = {
 	products: ProductIdentifier[];
 }
 
-function parseUserAgent(userAgentString: string): UserAgentData {
-	const data: UserAgentData = {
+function parseUserAgentHeader(userAgentString: string): UserAgentHeader {
+	const data: UserAgentHeader = {
 		products: [],
 	};
 
@@ -40,15 +40,52 @@ function parseUserAgent(userAgentString: string): UserAgentData {
 	return data;
 }
 
+type BrandIdentifier = {
+	name: string;
+	version: string;
+}
+
+type UserAgentClientHint = {
+	brands: BrandIdentifier[];
+}
+
+function parseUserAgentClientHint(userAgentString: string): UserAgentClientHint {
+	const data: UserAgentClientHint = {
+		brands: [],
+	};
+
+	const regex = /"([^"]+)";v="([^"]+)"/g;
+
+	let match;
+	while ((match = regex.exec(userAgentString)) !== null) {
+		const newBrand: BrandIdentifier = {
+			name: match[1].trim(),
+			version: match[2].trim(),
+		};
+
+		data.brands.push(newBrand);
+	}
+
+	return data;
+}
+
 const server = Bun.serve({
 	port: 3000,
 	fetch(req) {
 		const url = new URL(req.url);
 		if (url.pathname === '/') {
-			const userAgentString = req.headers.get("User-Agent");
+			const userAgentClientHint = req.headers.get("Sec-CH-UA");
+			const userAgentHeader = req.headers.get("User-Agent");
 
-			if (userAgentString) {
-				const data = parseUserAgent(userAgentString);
+			if (userAgentClientHint) {
+				const data = parseUserAgentClientHint(userAgentClientHint);
+				return new Response(JSON.stringify(data), {
+					headers: {
+						'Content-Type': 'application/json',
+					},
+				});
+			} else if (userAgentHeader) {
+				const data = parseUserAgentHeader(userAgentHeader);
 				return new Response(JSON.stringify(data), {
 					headers: {
 						'Content-Type': 'application/json',
