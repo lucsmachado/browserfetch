@@ -1,3 +1,5 @@
+import { Elysia } from 'elysia';
+
 type ProductIdentifier = {
 	name: string;
 	version?: string;
@@ -69,38 +71,25 @@ function parseUserAgentClientHint(userAgentString: string): UserAgentClientHint 
 	return data;
 }
 
-const server = Bun.serve({
-	port: 3000,
-	fetch(req) {
-		const url = new URL(req.url);
-		if (url.pathname === '/') {
-			const userAgentClientHint = req.headers.get("Sec-CH-UA");
-			const userAgentHeader = req.headers.get("User-Agent");
+const app = new Elysia()
+	.get("/", ({ request, set }) => {
+		const userAgentClientHint = request.headers.get("Sec-CH-UA");
+		const userAgentHeader = request.headers.get("User-Agent");
 
-			if (userAgentClientHint) {
-				const data = parseUserAgentClientHint(userAgentClientHint);
-				return new Response(JSON.stringify(data), {
-					headers: {
-						'Content-Type': 'application/json',
-					},
-				});
-			} else if (userAgentHeader) {
-				const data = parseUserAgentHeader(userAgentHeader);
-				return new Response(JSON.stringify(data), {
-					headers: {
-						'Content-Type': 'application/json',
-					},
-				});
-			} else {
-				return new Response(undefined, {
-					status: 400,
-				});
+		if (userAgentClientHint) {
+			const data = parseUserAgentClientHint(userAgentClientHint);
+			return data;
+		} else if (userAgentHeader) {
+			const data = parseUserAgentHeader(userAgentHeader);
+			return data;
+		} else {
+			set.status = 400;
+			return {
+				error: 'Unidentified Client',
+				message: 'Please provide an User-Agent or Sec-CH-UA header'
 			}
 		}
-		return new Response(undefined, {
-			status: 404,
-		});
-	},
-});
+	})
+	.listen(3000);
 
-console.log(`Listening on http://localhost:${server.port} ...`);
+console.log(`Listening on http://${app.server?.hostname}:${app.server?.port}...`);
