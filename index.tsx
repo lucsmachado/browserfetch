@@ -75,12 +75,21 @@ function parseUserAgentClientHint(userAgentString: string): UserAgentClientHint 
 
 const app = new Elysia()
 	.use(html())
-	.get("/", ({ html, request }) => {
+	.get("/", ({ html, request, set }) => {
+		set.headers = {
+			'accept-ch': 'width,sec-ch-ua-arch,sec-ch-prefers-color-scheme',
+		};
 		const userAgentClientHint = request.headers.get("sec-ch-ua");
 		const userAgentHeader = request.headers.get("user-agent");
 
+		const osClientHint = request.headers.get("sec-ch-ua-platform");
+		const archClientHint = request.headers.get("sec-ch-ua-arch");
+		const colorSchemeClientHint = request.headers.get("sec-ch-prefers-color-scheme");
+
 		let name;
 		let version;
+		let os = osClientHint ? osClientHint.replace(/^"(.*)"$/, '$1') : undefined;
+		let colorScheme = colorSchemeClientHint ?? undefined;
 
 		if (userAgentClientHint) {
 			const data = parseUserAgentClientHint(userAgentClientHint);
@@ -95,7 +104,6 @@ const app = new Elysia()
 					version = chromium.version;
 				}
 			}
-
 		} else if (userAgentHeader) {
 			const data = parseUserAgentHeader(userAgentHeader);
 			name = data.products[2].name;
@@ -104,7 +112,13 @@ const app = new Elysia()
 
 		return html(
 			<BaseHtml>
-				<BrowserInfo name={name} version={version} />
+				<Page colorScheme={colorScheme}>
+					<BrowserInfo
+						name={name}
+						version={version}
+						os={os}
+					/>
+				</Page>
 			</BaseHtml>
 		);
 	})
@@ -119,13 +133,43 @@ const BaseHtml = ({ children }: elements.Children) => `
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>browserfetch </title>
+		<script src="https://cdn.jsdelivr.net/npm/@unocss/runtime"></script>
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@unocss/reset/tailwind.min.css">
 	</head>
-	<body>
-		<h1>browserfetch</h1>
-		${children}
-	</body>
+	${children}
 </html>
 `;
+
+type PageProps = {
+	children?: elements.Children;
+	colorScheme?: string;
+}
+
+function Page({ children, colorScheme }: PageProps) {
+	if (colorScheme === 'dark') {
+		return (
+			<body class="bg-slate-900 text-slate-200">
+				<Header />
+				{children}
+			</body>
+		)
+	} else {
+		return (
+			<body class="bg-slate-50 text-slate-900">
+				<Header />
+				{children}
+			</body>
+		)
+	}
+}
+
+function Header() {
+	return (
+		<header class="px-8 py-4">
+			<h1 class="text-4xl">browserfetch</h1>
+		</header>
+	);
+}
 
 type Browser = {
 	name: string;
@@ -136,11 +180,15 @@ type Browser = {
 type Props = {
 	name?: string;
 	version?: string;
+	os?: string;
 }
 
-function BrowserInfo({ name, version }: Props) {
+function BrowserInfo({
+	name,
+	version,
+	os,
+}: Props) {
 	const browser = browsers.find((browser) => new RegExp(browser.name, "i").test(name || ''));
-	console.log({ name, version, browser })
 
 	if (!browser) {
 		return (
@@ -149,11 +197,25 @@ function BrowserInfo({ name, version }: Props) {
 	}
 
 	return (
-		<div>
-			<pre>{browser.logo}</pre>
-			<p>{browser.displayName} {version}</p>
-		</div>
+		<main class="p-8 grid place-items-center">
+			<div class="flex gap-8">
+				<pre>{browser.logo}</pre>
+				<ul>
+					<li>
+						<span class="text-red-400">Browser:</span>
+						<span>{browser.displayName} {version}</span>
+					</li>
+					{os && (
+						<li>
+							<span class="text-red-400">OS:</span>
+							<span>{os}</span>
+						</li>
+					)}
+				</ul>
+			</div>
+		</main>
 	);
+
 }
 
 const browsers: Browser[] = [{
